@@ -1,0 +1,219 @@
+Exploratory Analysis
+There are 7043 customers in total
+
+How much revenue was lost to churned customers?
+Maven lost 1869 customers and they accounted for 17% of Maven’s total revenue. It’s a pretty significant figure and we’ll investigate why they’re leaving later on in this article.
+
+-- How much revenue did Maven lose to churned customers?
+SELECT Customer_Status, 
+COUNT(Customer_ID) AS customer_count,
+ROUND((SUM(Total_Revenue) * 100.0) / SUM(SUM(Total_Revenue)) OVER(), 1) AS Revenue_Percentage 
+FROM dbo.churn2
+GROUP BY Customer_Status;
+
+2. What’s the typical tenure for churned customers?
+
+To find out how long customers typically stay at Maven before leaving, I used the CASE statement in SQL. The CASE statement creates a derived column (Tenure) and groups customers who leave the company in 12 months or less as ’12 months’ etc.
+
+I found that ~42% of churned customers spent 6 months or less at Maven before leaving.
+
+Almost half of the customers who churned had a relatively short tenure with the company, so there are opportunities for Maven to improve customer retention among newer customers.
+
+-- Typical tenure for churners
+SELECT
+    CASE 
+        WHEN Tenure_in_Months <= 6 THEN '6 months'
+        WHEN Tenure_in_Months <= 12 THEN '1 Year'
+        WHEN Tenure_in_Months <= 24 THEN '2 Years'
+        ELSE '> 2 Years'
+    END AS Tenure,
+    ROUND(COUNT(Customer_ID) * 100.0 / SUM(COUNT(Customer_ID)) OVER(),1) AS Churn_Percentage
+FROM
+dbo.churn2
+WHERE
+Customer_Status = 'Churned'
+GROUP BY
+    CASE 
+        WHEN Tenure_in_Months <= 6 THEN '6 months'
+        WHEN Tenure_in_Months <= 12 THEN '1 Year'
+        WHEN Tenure_in_Months <= 24 THEN '2 Years'
+        ELSE '> 2 Years'
+    END
+ORDER BY
+Churn_Percentage DESC;
+
+3. Which cities had the highest churn rates?
+
+Churn rate measures the percentage of customers who stop using the services of a company over a certain period of time.
+
+For the purpose of this analysis, I only considered cities with more than 30 customers in total, because some cities had very few customers and my conclusion would have been biased towards them.
+
+San Diego had the highest churn rate at 65%, which means that over half of their customers have left the company.
+
+-- Which cities have the highest churn rates?
+SELECT
+    TOP 4 City,
+    COUNT(Customer_ID) AS Churned,
+    CEILING(COUNT(CASE WHEN Customer_Status = 'Churned' THEN Customer_ID ELSE NULL END) * 100.0 / COUNT(Customer_ID)) AS Churn_Rate
+FROM
+    dbo.churn2
+GROUP BY
+    City
+HAVING
+    COUNT(Customer_ID)  > 30
+AND
+    COUNT(CASE WHEN Customer_Status = 'Churned' THEN Customer_ID ELSE NULL END) > 0
+ORDER BY
+    Churn_Rate DESC;
+
+4. What are the general reasons for churn?
+
+45% of churned customers stated ‘Competitor’ as their reason for leaving. It’s interesting to note that a significant number of customers (17%) left due to the attitude of support staff. Maven also lost about $1.7 million to Competitors, making it the most expensive type of churn.
+
+-- Why did customers leave?
+SELECT 
+  Churn_Category,  
+  ROUND(SUM(Total_Revenue),0)AS Churned_Rev,
+  CEILING((COUNT(Customer_ID) * 100.0) / SUM(COUNT(Customer_ID)) OVER()) AS Churn_Percentage
+FROM 
+  dbo.churn2
+WHERE 
+    Customer_Status = 'Churned'
+GROUP BY 
+  Churn_Category
+ORDER BY 
+  Churn_Percentage DESC;
+
+5a. Specific reasons for churn
+
+The top 3 reasons for churn are ‘Competitor made better offer’, ‘Competitor had better devices’ and ‘Attitude of support person’.
+
+-- why exactly did customers churn?
+SELECT TOP 5
+    Churn_Reason,
+    Churn_Category,
+    ROUND(COUNT(Customer_ID) *100 / SUM(COUNT(Customer_ID)) OVER(), 1) AS churn_percentage
+FROM
+    dbo.churn2
+WHERE
+    Customer_Status = 'Churned'
+GROUP BY 
+Churn_Reason,
+Churn_Category
+ORDER BY churn_percentage DESC;
+
+5b. What offers did churned customers have?
+
+56% of churners did not have any promotional offer while 23% had Offer E. Offers are a great way to reward and retain your loyal customers.
+
+-- What offers did churners have?
+SELECT  
+    Offer,
+    ROUND(COUNT(Customer_ID) * 100.0 / SUM(COUNT(Customer_ID)) OVER(), 1) AS churned
+FROM
+    dbo.churn2
+WHERE
+    Customer_Status = 'Churned'
+GROUP BY
+Offer
+ORDER BY 
+churned DESC;
+
+5c. What internet type did churners have?
+
+66% of all churned customers used Fiber Optic. While ~70% of customers who left for competitors also used Fiber Optic. Maven should review the quality and service of their Fiber Optic internet, as this could be the reason customers are leaving to competitors.
+
+-- What Internet Type did churners have?
+SELECT
+    Internet_Type,
+    COUNT(Customer_ID) AS Churned,
+    ROUND(COUNT(Customer_ID) * 100.0 / SUM(COUNT(Customer_ID)) OVER(), 1) AS Churn_Percentage
+FROM
+    dbo.churn2
+WHERE 
+    Customer_Status = 'Churned'
+GROUP BY
+Internet_Type
+ORDER BY 
+Churned DESC;
+-- What Internet Type did 'Competitor' churners have?
+SELECT
+    Internet_Type,
+    Churn_Category,
+    ROUND(COUNT(Customer_ID) * 100.0 / SUM(COUNT(Customer_ID)) OVER(), 1) AS Churn_Percentage
+FROM
+    dbo.churn2
+WHERE 
+    Customer_Status = 'Churned'
+    AND Churn_Category = 'Competitor'
+GROUP BY
+Internet_Type,
+Churn_Category
+ORDER BY Churn_Percentage DESC;
+
+Internet type for Churned customers
+
+
+Internet type for Churned ‘Competitor’ customers
+
+5d. Did churners have premium tech support?
+
+77% of churned customers did not have premium tech support. It’s possible that this service could have improved their after-sales experience and reduced churn.
+
+-- Did churners have premium tech support?
+SELECT 
+    Premium_Tech_Support,
+    COUNT(Customer_ID) AS Churned,
+    ROUND(COUNT(Customer_ID) *100.0 / SUM(COUNT(Customer_ID)) OVER(),1) AS Churn_Percentage
+FROM
+    dbo.churn2
+WHERE 
+    Customer_Status = 'Churned'
+GROUP BY Premium_Tech_Support
+ORDER BY Churned DESC;
+
+5e. What contract were churners on?
+
+Almost all churned customers (89%) were on the month-to-month contract.
+
+Customers on a month-to-month contract are more likely to churn, as they have greater flexibility to cancel or switch providers without incurring any penalty.
+
+
+-- What contract were churners on?
+SELECT 
+    Contract,
+    COUNT(Customer_ID) AS Churned,
+    ROUND(COUNT(Customer_ID) * 100.0 / SUM(COUNT(Customer_ID)) OVER(), 1) AS Churn_Percentage
+FROM 
+    dbo.churn2
+WHERE
+    Customer_Status = 'Churned'
+GROUP BY
+    Contract
+ORDER BY 
+    Churned DESC;
+The key churn indicators are therefore:
+
+Contract: 89% of churned customers were on the month-to-month contract
+Premium Tech Support: 77% of churners did not have premium tech support
+Internet Type: 66% of churners used Fiber Optic internet
+Offer: 56% of churners did not have any promotional offers, while 23% had Offer E.
+6. Are high value customers at risk of churning?
+
+I defined high value customers based on these factors and grouped them into 3 risk levels (High, Medium, Low):
+
+. Tenure: This is a measure of loyalty, so I only considered customers that have been with the company for at least 9 months.
+
+. Monthly Charge: If the customer’s total monthly charge is in the top 50th percentile.
+
+. Referrals: customers who refer other customers to the business.
+
+High-value customers with 3–4 churn indicators are High Risk, while Medium Risk customers have 2 and Low Risk customers have only 1. For instance, a high-value customer at high risk of churning may use fiber optic, have a month-to-month contract, and no promotional offers or premium tech support.
+
+COUNTD(
+IF [Monthly Charge] > {FIXED: PERCENTILE([Monthly Charge], 0.5)}
+AND [Number of Referrals] > 0 
+AND [Customer Status] = 'Stayed' 
+AND [Tenure in Months] > 9
+THEN ([Customer ID]) 
+END)
